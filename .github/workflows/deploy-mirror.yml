@@ -22,24 +22,46 @@ jobs:
           repository: Inholland-LM/Introweek-app
           ref: main
 
+      - name: Controleer of de productiebron is gewijzigd
+        id: source
+        shell: bash
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          published_sha="$(curl --fail --silent --show-error \
+            https://raw.githubusercontent.com/Inholland-LM/introweek-test/gh-pages/source-version.txt \
+            || true)"
+          echo "sha=${source_sha}" >> "$GITHUB_OUTPUT"
+          if [ "${source_sha}" = "${published_sha}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "De actuele productieversie staat al online."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Er is een nieuwe productieversie om te publiceren."
+          fi
+
       - name: Installeer pnpm
+        if: steps.source.outputs.changed == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Gebruik Node.js
+        if: steps.source.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Installeer dependencies
+        if: steps.source.outputs.changed == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Pas offline startpad aan voor het alternatieve adres
+        if: steps.source.outputs.changed == 'true'
         run: sed -i 's#/Introweek-app/#/introweek-test/#g' public/sw.js
 
       - name: Bouw dezelfde app met dezelfde backend
+        if: steps.source.outputs.changed == 'true'
         run: pnpm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
@@ -47,11 +69,13 @@ jobs:
           VITE_AUTH_ENABLED: ${{ vars.VITE_AUTH_ENABLED }}
 
       - name: Publiceer naar de gh-pages-branch
+        if: steps.source.outputs.changed == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           touch dist/.nojekyll
+          printf '%s' "${{ steps.source.outputs.sha }}" > dist/source-version.txt
           cd dist
           git init
           git checkout -b gh-pages
