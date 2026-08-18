@@ -1,0 +1,63 @@
+name: Publiceer actuele Introweek-app
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Haal actuele productiebron op
+        uses: actions/checkout@v4
+        with:
+          repository: Inholland-LM/Introweek-app
+          ref: main
+
+      - name: Gebruik Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installeer dependencies
+        run: npm ci
+
+      - name: Pas offline startpad aan voor het alternatieve adres
+        run: sed -i 's#/Introweek-app/#/introweek-test/#g' public/sw.js
+
+      - name: Bouw dezelfde app met dezelfde backend
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_AUTH_ENABLED: ${{ vars.VITE_AUTH_ENABLED }}
+
+      - name: Configureer GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publiceer GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
