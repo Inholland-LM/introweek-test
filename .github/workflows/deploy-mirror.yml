@@ -24,20 +24,25 @@ jobs:
           repository: Inholland-LM/Introweek-app
           ref: main
 
+      - name: Installeer pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Gebruik Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
+          cache: pnpm
 
       - name: Installeer dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Pas offline startpad aan voor het alternatieve adres
         run: sed -i 's#/Introweek-app/#/introweek-test/#g' public/sw.js
 
       - name: Bouw dezelfde app met dezelfde backend
-        run: npm run build
+        run: pnpm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
